@@ -1,5 +1,5 @@
 [package]
-name = "certified-cache"
+name = "certified-http"
 version = "0.2.0"
 description = "A single interface that stores key-value pairs and certifies their hashes for use as certified variables or assets."
 repository = "https://github.com/krpeacock/certified-cache"
@@ -8,4 +8,6 @@ repository = "https://github.com/krpeacock/certified-cache"
 base = "0.8.3"
 ic-certification = "0.1.0"
 motoko-sha = "https://github.com/enzoh/motoko-sha#master"
+
+[dev-dependencies]
 StableHashMap = "https://github.com/canscale/StableHashMap#master"
