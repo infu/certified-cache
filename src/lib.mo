@@ -15,17 +15,33 @@ import Nat8 "mo:base/Nat8";
 import Array "mo:base/Array";
 
 module {
-  public class CertifiedCache<K, V>(
+
+  public type CertifiedCacheMemory<K, V> = {
+    map : HashMap.StableHashMap<K, V>;
+    ExpiryMap : HashMap.StableHashMap<K, Nat>;
+    cert_store : CertTree.Store;
+  };
+
+  public func init<K, V>(
     initCapacity : Nat,
     keyEq : (K, K) -> Bool,
-    keyHash : K -> Hash.Hash,
+    keyHash : K -> Hash.Hash
+  ) : CertifiedCacheMemory<K, V> {
+    return {
+      map : HashMap.StableHashMap<K, V> = HashMap.StableHashMap<K, V>(initCapacity, keyEq, keyHash);
+      ExpiryMap : HashMap.StableHashMap<K, Nat> = HashMap.StableHashMap<K, Nat>(initCapacity, keyEq, keyHash);
+      cert_store : CertTree.Store = CertTree.newStore();
+    };
+  };
+
+  public class CertifiedCache<K, V>(
+    mem: CertifiedCacheMemory<K, V>,
     keyToBlob : K -> Blob,
     valToBlob : V -> Blob,
     timeToLive : Nat,
   ) {
-    var map : HashMap.StableHashMap<K, V> = HashMap.StableHashMap<K, V>(initCapacity, keyEq, keyHash);
-    var ExpiryMap : HashMap.StableHashMap<K, Nat> = HashMap.StableHashMap<K, Nat>(initCapacity, keyEq, keyHash);
-    var cert_store : CertTree.Store = CertTree.newStore();
+    let {map; ExpiryMap; cert_store} = mem;
+
     var ct = CertTree.Ops(cert_store);
     var csm = CanisterSigs.Manager(ct, null);
 
@@ -184,22 +200,5 @@ module {
 
   };
 
-  public func fromEntries<K, V>(
-    entries : [(K, (V, Nat))],
-    keyEq : (K, K) -> Bool,
-    keyHash : K -> Hash.Hash,
-    keyToBlob : K -> Blob,
-    valToBlob : V -> Blob,
-    timeToLive : Nat,
-  ) : CertifiedCache<K, V> {
-    let initCapacity = Array.size(entries);
-    let newCache = CertifiedCache<K, V>(initCapacity, keyEq, keyHash, keyToBlob, valToBlob, timeToLive);
-    for (entry in Iter.fromArray(entries)) {
-      let (k, val_exp) = entry;
-      let (v, e) = val_exp;
-      newCache.put(k, v, ?e);
-    };
-    newCache;
-  };
 
 };
