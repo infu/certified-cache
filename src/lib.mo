@@ -1,7 +1,7 @@
 import CertTree "mo:ic-certification/CertTree";
 import CanisterSigs "mo:ic-certification/CanisterSigs";
 import CertifiedData "mo:base/CertifiedData";
-import SHA256 "mo:motoko-sha/SHA256";
+import SHA256 "mo:sha2/Sha256";
 import Hash "mo:base/Hash";
 import Iter "mo:base/Iter";
 import Time "mo:base/Time";
@@ -31,7 +31,7 @@ module {
 
     public func put(key : K, value : Blob) : () {
       // insert into CertTree
-      ct.put(["http_assets", keyToBlob(key)], Blob.fromArray(SHA256.sha256(Blob.toArray(value))));
+      ct.put(["http_assets", keyToBlob(key)], SHA256.fromBlob(#sha256, value));
       ct.setCertifiedData();
     };
     public func delete(key : K) : () {
