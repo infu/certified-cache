@@ -29,6 +29,11 @@ module {
     let ct = CertTree.Ops(cert_store);
     let csm = CanisterSigs.Manager(ct, null);
 
+    public func putHash(key : K, value : Blob) : () {
+      ct.put(["http_assets", keyToBlob(key)], value);
+      ct.setCertifiedData();
+    };
+
     public func put(key : K, value : Blob) : () {
       // insert into CertTree
       ct.put(["http_assets", keyToBlob(key)], SHA256.fromBlob(#sha256, value));
