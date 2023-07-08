@@ -12,6 +12,9 @@ import Blob "mo:base/Blob";
 import Buffer "mo:base/Buffer";
 import Nat8 "mo:base/Nat8";
 import Array "mo:base/Array";
+import BTree "mo:stableheapbtreemap/BTree";
+import Text "mo:base/Text";
+import Timer "mo:base/Timer";
 
 module {
 
@@ -21,27 +24,97 @@ module {
     CertTree.newStore();
   };
 
-  public class CertifiedHttp<K>(
+  type ChunkedCallback = {
+    max_chunks: Nat;
+    done: ([Blob]) -> ();
+    var last_chunk: Nat;
+    chunks: [var ?Blob];
+    sha: SHA256.Digest;
+    timerId : Timer.TimerId;
+  };
+
+  public class CertifiedHttp(
     cert_store: CertifiedHttpMemory,
-    keyToBlob : K -> Blob,
   ) {
 
     let ct = CertTree.Ops(cert_store);
     let csm = CanisterSigs.Manager(ct, null);
 
-    public func putHash(key : K, value : Blob) : () {
-      ct.put(["http_assets", keyToBlob(key)], value);
+    let chunked = BTree.init<Text, ChunkedCallback>(?8);
+
+    public func chunkedSend(key:Text, chunk_id: Nat, content: Blob) : () {
+      switch(BTree.get(chunked, Text.compare, key)) {
+        case (?st) {
+          st.last_chunk := chunk_id;
+          st.chunks[chunk_id] := ?content;
+          st.sha.writeBlob(content);
+
+          if (st.last_chunk + 1 != chunk_id) {
+            Debug.trap("chunkedSend: Uploading non sequentail chunks not supported");
+            chunkedClear(key);
+            return ();
+          };
+
+          if (chunk_id + 1 == st.max_chunks) {
+            let hash = st.sha.sum();
+            putHash(key, hash);
+
+            chunkedClear(key);
+
+            let fchunks = Array.tabulate<Blob>(st.max_chunks, func(i) : Blob {
+                let ?b = st.chunks[i] else Debug.trap("chunkedSend: missing chunk");
+                b;
+            });
+
+            st.done(fchunks);
+          };
+        };
+        case (null) {
+          Debug.trap("chunkedSend without chunkedStart");
+        }
+      };
+    };
+
+    public func chunkedStart(key:Text, chunks: Nat, done: ([Blob]) -> () ) : () {
+      chunkedClear(key);
+
+      let st:ChunkedCallback = {
+        max_chunks = chunks;
+        chunks = Array.init<?Blob>(chunks, null);
+        done;
+        var last_chunk = 0;
+        sha = SHA256.Digest(#sha256);
+        timerId = Timer.setTimer(#seconds(chunks * 3), func() : async () {
+          chunkedClear(key);
+        });
+      };
+
+      ignore BTree.insert(chunked, Text.compare, key, st);
+    };
+
+    private func chunkedClear(key:Text) : () {
+      switch(BTree.get(chunked, Text.compare, key)) {
+        case (?st) {
+          Timer.cancelTimer(st.timerId);
+          ignore BTree.delete(chunked, Text.compare, key);
+        };
+        case (null) ();
+      };
+    };
+
+    public func putHash(key : Text, value : Blob) : () {
+      ct.put(["http_assets", Text.encodeUtf8(key)], value);
       ct.setCertifiedData();
     };
 
-    public func put(key : K, value : Blob) : () {
+    public func put(key : Text, value : Blob) : () {
       // insert into CertTree
-      ct.put(["http_assets", keyToBlob(key)], SHA256.fromBlob(#sha256, value));
+      ct.put(["http_assets", Text.encodeUtf8(key)], SHA256.fromBlob(#sha256, value));
       ct.setCertifiedData();
     };
-    public func delete(key : K) : () {
+    public func delete(key : Text) : () {
       // remove from CertTree
-      ct.delete(["http_assets", keyToBlob(key)]);
+      ct.delete(["http_assets", Text.encodeUtf8(key)]);
       ct.setCertifiedData();
     };
 
@@ -75,8 +148,8 @@ module {
       return out;
     };
 
-    public func certificationHeader(url : K) : HTTP.HeaderField {
-      let witness = ct.reveal(["http_assets", keyToBlob(url)]);
+    public func certificationHeader(url : Text) : HTTP.HeaderField {
+      let witness = ct.reveal(["http_assets", Text.encodeUtf8(url)]);
       let encoded = ct.encodeWitness(witness);
       let cert = switch (CertifiedData.getCertificate()) {
         case (?c) c;
