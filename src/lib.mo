@@ -84,7 +84,7 @@ module {
         done;
         var last_chunk = 0;
         sha = SHA256.Digest(#sha256);
-        timerId = Timer.setTimer(#seconds(chunks * 3), func() : async () {
+        timerId = Timer.setTimer(#seconds(chunks * 3), func() : async () { // timeouts after 3 x chunks seconds
           chunkedClear(key);
         });
       };
