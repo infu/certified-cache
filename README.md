@@ -43,4 +43,44 @@ You handle file storage yourself.
 
 ```
 
-It also uses https://mops.one/sha2 which allows it to certify larger files without running out of instructions
+Advanced - hashing chunks when you receive them
+
+```mo
+          switch(cmd) {
+                case(#store({key; val})) {
+                    assert(val.chunks > 0);
+
+                    if (val.chunks == 1) {
+
+                        // Insert the file in your store (Use your own store)
+                        assets.db.insert({
+                            id= key;
+                            chunks= val.chunks;
+                            content= [val.content];
+                            content_encoding= val.content_encoding;
+                            content_type = val.content_type;
+                        });
+                        cert.put(key, val.content);
+                        return ();
+                    };
+                    // Allows uploads of large certified files.
+                    cert.chunkedStart(key, val.chunks, func(content: [Blob]) {
+                        // when done
+
+                        // Insert the file in your store (Use your own store)
+                        assets.db.insert({
+                            id= key;
+                            chunks= val.chunks;
+                            content= content;
+                            content_encoding= val.content_encoding;
+                            content_type = val.content_type;
+                        });
+                    });
+
+                };
+
+                 case(#store_chunk(x)) {
+                    cert.chunkedSend(x.key, x.chunk_id, x.content);
+                };
+          }
+```
