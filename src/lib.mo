@@ -75,7 +75,12 @@ module {
       };
     };
 
-    public func chunkedStart(key:Text, chunks: Nat, done: ([Blob]) -> () ) : () {
+    public func chunkedStart(key:Text, chunks: Nat, content:Blob, done: ([Blob]) -> () ) : () {
+      if (chunks == 1) {
+        done([content]);
+        return;
+      };
+
       chunkedClear(key);
 
       let st:ChunkedCallback = {

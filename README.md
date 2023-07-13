@@ -50,21 +50,8 @@ Advanced - hashing chunks when you receive them
                 case(#store({key; val})) {
                     assert(val.chunks > 0);
 
-                    if (val.chunks == 1) {
-
-                        // Insert the file in your store (Use your own store)
-                        assets.db.insert({
-                            id= key;
-                            chunks= val.chunks;
-                            content= [val.content];
-                            content_encoding= val.content_encoding;
-                            content_type = val.content_type;
-                        });
-                        cert.put(key, val.content);
-                        return ();
-                    };
                     // Allows uploads of large certified files.
-                    cert.chunkedStart(key, val.chunks, func(content: [Blob]) {
+                    cert.chunkedStart(key, val.chunks, val.content, func(content: [Blob]) {
                         // when done
 
                         // Insert the file in your store (Use your own store)
